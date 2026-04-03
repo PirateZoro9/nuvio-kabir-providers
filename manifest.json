@@ -29,29 +29,30 @@
       "supportsExternalPlayer": true
     },
     {
-      "id": "cinestream-provider",
-      "name": "CineStream",
-      "description": "Ported from SaurabhKaperwanCSX, ported by kabir",
-      "version": "1.0.0",
-      "author": "kabir",
-      "supportedTypes": [
-        "movie",
-        "tv"
-      ],
-      "filename": "providers/cinestream.js",
-      "enabled": true,
-      "logo": "",
-      "contentLanguage": [
-        "en"
-      ],
-      "formats": [
-        "mp4",
-        "mkv",
-        "m3u8"
-      ],
-      "limited": false,
-      "disabledPlatforms": [],
-      "supportsExternalPlayer": true
+  "id": "cinestream-provider",
+  "name": "CineStream",
+  "description": "Ported from SaurabhKaperwan/CSX, ported by kabir",
+  "version": "0.2.1",
+  "author": "kabir",
+  "supportedTypes": [
+    "tv",
+    "movie"
+  ],
+  "filename": "providers/cinestream.js",
+  "enabled": true,
+  "logo": "",
+  "contentLanguage": [
+    "hi",
+    "en",
+    "ja"
+  ],
+  "formats": [
+    "m3u8",
+    "mp4"
+  ],
+  "limited": false,
+  "disabledPlatforms": [],
+  "supportsExternalPlayer": true
     },
     {
       "id": "allwish-provider",
