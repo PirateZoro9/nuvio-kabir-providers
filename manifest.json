@@ -52,6 +52,30 @@
       "limited": false,
       "disabledPlatforms": [],
       "supportsExternalPlayer": true
+    },
+    {
+      "id": "allwish-provider",
+      "name": "AllWish",
+      "description": "Ported from phisher98, ported by kabir",
+      "version": "1.0.0",
+      "author": "kabir",
+      "supportedTypes": [
+        "tv",
+        "movie"
+      ],
+      "filename": "providers/allwish.js",
+      "enabled": true,
+      "logo": "",
+      "contentLanguage": [
+        "en",
+        "ja"
+      ],
+      "formats": [
+        "m3u8"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
     }
   ]
 }
