@@ -1,0 +1,80 @@
+{
+  "name": "Nuvio Ported by Kabir",
+  "version": "1.0.0",
+  "url": "http://localhost:3000",
+  "scrapers": [
+    {
+      "id": "doflix-provider",
+      "name": "DoFlix",
+      "description": "Ported from SaurabhKaperwanCSX, ported by kabir",
+      "version": "1.0.0",
+      "author": "kabir",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/doflix.js",
+      "enabled": true,
+      "logo": "",
+      "contentLanguage": [
+        "hi",
+        "en"
+      ],
+      "formats": [
+        "mp4",
+        "mkv",
+        "m3u8"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "allwish-provider",
+      "name": "AllWish",
+      "description": "Fixed for Anime-only validation, ported by kabir",
+      "version": "1.0.1",
+      "author": "kabir",
+      "supportedTypes": [
+        "tv",
+        "movie"
+      ],
+      "filename": "providers/allwish.js",
+      "enabled": true,
+      "logo": "",
+      "contentLanguage": [
+        "en",
+        "ja"
+      ],
+      "formats": [
+        "m3u8"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "animepahe",
+      "name": "AnimePahe",
+      "description": "Fast anime streaming with sub and dub.",
+      "version": "1.0.0",
+      "author": "kabir",
+      "supportedTypes": [
+        "tv",
+        "movie"
+      ],
+      "filename": "providers/animepahe.js",
+      "enabled": true,
+      "logo": "",
+      "contentLanguage": [
+        "en"
+      ],
+      "formats": [
+        "m3u8"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
+    }
+  ]
+}
