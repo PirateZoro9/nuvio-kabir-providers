@@ -1,6 +1,6 @@
 /**
  * animepahe - Built from src/animepahe/
- * Generated: 2026-04-16T15:16:08.367Z
+ * Generated: 2026-04-17T03:44:36.641Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -729,6 +729,13 @@ function getStreams(tmdbId, mediaType, season, episode) {
       const tmdbUrl = `${TMDB_BASE}/${mediaType === "movie" ? "movie" : "tv"}/${tmdbId}?api_key=${TMDB_API_KEY}`;
       const tRes = yield tmdbGet(tmdbUrl);
       const tData = JSON.parse(tRes.body);
+      const genres = tData.genres || [];
+      const isAnimation = genres.some((g) => g.id === 16);
+      const isJapanese = tData.original_language === "ja";
+      if (!isAnimation || !isJapanese) {
+        console.log(`[AnimePahe] Content is not Japanese Animation (ID: ${tmdbId}, Lang: ${tData.original_language}). Skipping.`);
+        return [];
+      }
       const title = tData.name || tData.title || "";
       if (!title)
         return [];

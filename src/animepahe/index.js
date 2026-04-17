@@ -896,10 +896,21 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     try {
         console.log(`[AnimePahe] Request: ${mediaType} ${tmdbId} S:${season} E:${episode}`);
 
-        // 1. Get Title from TMDB
+        // 1. Get Title from TMDB and validate genre
         const tmdbUrl = `${TMDB_BASE}/${mediaType === 'movie' ? 'movie' : 'tv'}/${tmdbId}?api_key=${TMDB_API_KEY}`;
         const tRes = await tmdbGet(tmdbUrl);
         const tData = JSON.parse(tRes.body);
+
+        // VALIDATION: Reject content that is not Japanese Animation (TMDB ID: 16 + Language ja)
+        const genres = tData.genres || [];
+        const isAnimation = genres.some(g => g.id === 16);
+        const isJapanese = tData.original_language === "ja";
+        
+        if (!isAnimation || !isJapanese) {
+            console.log(`[AnimePahe] Content is not Japanese Animation (ID: ${tmdbId}, Lang: ${tData.original_language}). Skipping.`);
+            return [];
+        }
+
         const title = tData.name || tData.title || "";
         if (!title) return [];
 

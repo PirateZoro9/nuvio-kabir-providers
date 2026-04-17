@@ -73,6 +73,7 @@ function getTmdbDetails(tmdbId, mediaType) {
         originalTitle: mediaType === 'movie' ? data.original_title : data.original_name,
         year: (mediaType === 'movie' ? data.release_date : data.first_air_date)?.split('-')?.[0] || null,
         genres: (data.genres || []).map(g => g.id),
+        originalLanguage: data.original_language,
     }));
 }
 
@@ -355,10 +356,12 @@ async function getStreams(tmdbId, mediaType = 'tv', season = null, episode = nul
         const mediaInfo = await getTmdbDetails(tmdbId, mediaType);
         if (!mediaInfo?.title) return [];
 
-        // VALIDATION: Reject content that is not categorized as Animation (TMDB ID: 16)
-        // Fallback: If genres are empty, proceed to search, as the site itself is anime-only.
-        if (mediaInfo.genres.length > 0 && !mediaInfo.genres.includes(16)) {
-            console.log(`[AllWish] Content is NOT Animation (Genres: ${mediaInfo.genres}). Rejecting.`);
+        // VALIDATION: Reject content that is not Japanese Animation (TMDB ID: 16 + Language ja)
+        const isAnimation = mediaInfo.genres.includes(16);
+        const isJapanese = mediaInfo.originalLanguage === "ja";
+
+        if (mediaInfo.genres.length > 0 && (!isAnimation || !isJapanese)) {
+            console.log(`[AllWish] Content is NOT Japanese Animation (Genres: ${mediaInfo.genres}, Lang: ${mediaInfo.originalLanguage}). Rejecting.`);
             return [];
         }
 
