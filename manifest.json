@@ -1,7 +1,7 @@
 {
   "name": "Nuvio Ported by Kabir",
   "version": "1.0.0",
-  "url": "http://localhost:3000",
+  "url": "/",
   "scrapers": [
     {
       "id": "doflix-provider",
