@@ -1,6 +1,6 @@
 /**
  * doflix - Built from src/doflix/
- * Generated: 2026-04-28T04:49:49.866Z
+ * Generated: 2026-04-28T05:06:49.319Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -46,7 +46,6 @@ var __async = (__this, __arguments, generator) => {
 var cheerio = require("cheerio-without-node-native");
 var MAIN_URL = "https://panel.watchkaroabhi.com";
 var API_KEY = "qNhKLJiZVyoKdi9NCQGz8CIGrpUijujE";
-var TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500/";
 var HEADERS = {
   "Connection": "Keep-Alive",
   "User-Agent": "dooflix",
@@ -86,37 +85,6 @@ function normalizeQuality(q) {
     return "480p";
   return "720p";
 }
-function getHome(cb) {
-  return __async(this, null, function* () {
-    const categories = [
-      { name: "Recent Movies", url: `${MAIN_URL}/api/3/discover/movie?api_key=${API_KEY}&language=en&sort_by=primary_release_date.desc&page=1` },
-      { name: "Recent Series", url: `${MAIN_URL}/api/3/discover/tv?api_key=${API_KEY}&language=en&sort_by=first_air_date.desc&page=1` },
-      { name: "Trending Movies", url: `${MAIN_URL}/api/3/trending/movie/week?api_key=${API_KEY}&page=1` },
-      { name: "Trending Series", url: `${MAIN_URL}/api/3/trending/tv/week?api_key=${API_KEY}&page=1` }
-    ];
-    try {
-      const homeData = {};
-      const results = yield Promise.all(
-        categories.map((cat) => request(cat.url).catch(() => ({ results: [] })))
-      );
-      categories.forEach((cat, i) => {
-        const items = results[i].results || [];
-        if (items.length > 0) {
-          homeData[cat.name] = items.slice(0, 15).map((item) => ({
-            title: item.title || item.name || "Unknown",
-            url: item.id.toString(),
-            posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path.replace(/^\/+/, "")}` : null,
-            type: item.first_air_date || item.name ? "series" : "movie",
-            score: parseFloat(item.vote_average) || 0
-          }));
-        }
-      });
-      cb({ success: true, data: homeData });
-    } catch (e) {
-      cb({ success: false, message: e.message });
-    }
-  });
-}
 function getStreams(tmdbId, mediaType, season, episode) {
   return __async(this, null, function* () {
     try {
@@ -152,8 +120,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
     }
   });
 }
-module.exports = { getStreams, getHome };
+module.exports = { getStreams };
 if (typeof global !== "undefined") {
   global.getStreams = getStreams;
-  global.getHome = getHome;
 }

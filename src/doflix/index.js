@@ -57,41 +57,6 @@ function normalizeQuality(q) {
     return "720p";
 }
 
-// --- Home Logic ---
-
-async function getHome(cb) {
-    const categories = [
-        { name: "Recent Movies", url: `${MAIN_URL}/api/3/discover/movie?api_key=${API_KEY}&language=en&sort_by=primary_release_date.desc&page=1` },
-        { name: "Recent Series", url: `${MAIN_URL}/api/3/discover/tv?api_key=${API_KEY}&language=en&sort_by=first_air_date.desc&page=1` },
-        { name: "Trending Movies", url: `${MAIN_URL}/api/3/trending/movie/week?api_key=${API_KEY}&page=1` },
-        { name: "Trending Series", url: `${MAIN_URL}/api/3/trending/tv/week?api_key=${API_KEY}&page=1` }
-    ];
-
-    try {
-        const homeData = {};
-        const results = await Promise.all(
-            categories.map(cat => request(cat.url).catch(() => ({ results: [] })))
-        );
-
-        categories.forEach((cat, i) => {
-            const items = results[i].results || [];
-            if (items.length > 0) {
-                homeData[cat.name] = items.slice(0, 15).map(item => ({
-                    title: item.title || item.name || "Unknown",
-                    url: item.id.toString(),
-                    posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path.replace(/^\/+/, "")}` : null,
-                    type: item.first_air_date || item.name ? "series" : "movie",
-                    score: parseFloat(item.vote_average) || 0
-                }));
-            }
-        });
-
-        cb({ success: true, data: homeData });
-    } catch (e) {
-        cb({ success: false, message: e.message });
-    }
-}
-
 // --- Stream Logic ---
 
 async function getStreams(tmdbId, mediaType, season, episode) {
@@ -132,9 +97,8 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 }
 
-module.exports = { getStreams, getHome };
+module.exports = { getStreams };
 
 if (typeof global !== 'undefined') {
     global.getStreams = getStreams;
-    global.getHome = getHome;
 }

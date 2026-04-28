@@ -2,14 +2,10 @@
  * StreamFlix Production Provider for Nuvio
  * 
  * FIXED: 
- * - Manual JSON parsing for large data.json (prevents 'Unexpected end of input' crash).
+ * - Surgical Regex Search for data.json (prevents 'Unexpected end of input' crash).
+ * - WebSocket Message Buffering (handles fragmented Firebase responses).
+ * - Fallback URL Generation (based on original author's pattern).
  * - Removed 'setTimeout' (not supported in sandbox).
- * - Optimized memory usage for large database.
- * 
- * Features:
- * - WebSocket support for TV Show episodes.
- * - Dynamic Mirror Resolution.
- * - Catalog support.
  */
 
 const cheerio = require('cheerio-without-node-native');
@@ -26,45 +22,53 @@ const HEADERS = {
 };
 
 // --- State Management ---
-let cachedData = [];
-let lastSync = 0;
 let cachedConfig = null;
 
 // --- Networking & API Utilities ---
 
-async function syncData() {
-    const now = Date.now();
-    if (cachedData.length > 0 && (now - lastSync < 3600000)) return cachedData;
-
+/**
+ * FIXED: This function treats the database as a raw string and uses Regex
+ * to extract ONLY the specific object we need. This prevents the sandbox from
+ * crashing on the 262KB JSON parse.
+ */
+async function findItemInDatabase(tmdbId, title) {
     try {
-        console.log("[StreamFlix] Syncing database...");
+        console.log("[StreamFlix] Surgical database search...");
         const res = await fetch(`${MAIN_URL}/data.json`, { headers: HEADERS });
-        
-        // FIXED: Manual parsing for stability with large files
         const text = await res.text();
-        if (!text) throw new Error("Empty database response");
-        
-        const json = JSON.parse(text);
-        if (json && json.data) {
-            // FIXED: Only store essential fields to save memory in sandbox
-            cachedData = json.data
-                .filter(i => i.moviename && i.moviekey)
-                .map(i => ({
-                    n: i.moviename.toLowerCase(),
-                    k: i.moviekey,
-                    t: i.tmdb,
-                    i: i.movieimdb,
-                    p: i.movieposter,
-                    l: i.movielink,
-                    isTV: !!i.isTV
-                }));
-            lastSync = now;
-            console.log(`[StreamFlix] Database synced: ${cachedData.length} items.`);
+        if (!text) return null;
+
+        let block = null;
+
+        // 1. Try search by TMDB ID
+        if (tmdbId) {
+            const tmdbRegex = new RegExp(`{[^{}]*"tmdb"\\s*:\\s*"${tmdbId}"[^{}]*}`, "i");
+            const match = text.match(tmdbRegex);
+            if (match) block = match[0];
+        }
+
+        // 2. Try search by Title (if TMDB failed)
+        if (!block && title) {
+            const titleRegex = new RegExp(`{[^{}]*"moviename"\\s*:\\s*"${title}"[^{}]*}`, "i");
+            const match = text.match(titleRegex);
+            if (match) block = match[0];
+        }
+
+        if (block) {
+            const item = JSON.parse(block);
+            return {
+                n: item.moviename.toLowerCase(),
+                k: item.moviekey,
+                t: item.tmdb,
+                i: item.movieimdb,
+                l: item.movielink,
+                isTV: !!item.isTV
+            };
         }
     } catch (e) {
-        console.error(`[StreamFlix] Data sync failed: ${e.message}`);
+        console.error(`[StreamFlix] Database lookup failed: ${e.message}`);
     }
-    return cachedData;
+    return null;
 }
 
 async function getConfig() {
@@ -79,7 +83,7 @@ async function getConfig() {
     }
 }
 
-// --- WebSocket Logic (SandBox Safe) ---
+// --- WebSocket Logic (Fragment Safe) ---
 
 async function getEpisodesFromWS(movieKey, targetSeason) {
     if (typeof WebSocket === 'undefined') return {};
@@ -88,10 +92,8 @@ async function getEpisodesFromWS(movieKey, targetSeason) {
         const ws = new WebSocket(WS_URL);
         const seasonsData = {};
         let isResolved = false;
+        let messageBuffer = ""; // FIXED: Added buffer to handle fragmented messages
 
-        // FIXED: Removed setTimeout. We rely on the WS close or error events.
-        // To prevent infinite hang, we'll resolve if no message in 10s (handled by Nuvio internally usually)
-        
         ws.onopen = () => {
             ws.send(JSON.stringify({
                 t: "d",
@@ -101,9 +103,19 @@ async function getEpisodesFromWS(movieKey, targetSeason) {
 
         ws.onmessage = (event) => {
             if (isResolved) return;
-            const text = event.data;
+            
+            // FIXED: Piece accumulation logic like original author
+            messageBuffer += event.data;
+            
             try {
-                const json = JSON.parse(text);
+                // Only try to parse if it looks like a complete object or status code
+                if (!messageBuffer.trim().startsWith("{") && !/^\d+$/.test(messageBuffer.trim())) {
+                    return; 
+                }
+
+                const json = JSON.parse(messageBuffer);
+                messageBuffer = ""; // Clear buffer on success
+
                 if (json.t === 'd' && json.d && json.d.b) {
                     const b = json.d.b;
                     if (b.s === 'ok' || b.d) {
@@ -115,7 +127,10 @@ async function getEpisodesFromWS(movieKey, targetSeason) {
                         resolve(seasonsData);
                     }
                 }
-            } catch (e) {}
+            } catch (e) {
+                // If it's too big and still failing, or not JSON yet, keep buffering
+                if (messageBuffer.length > 500000) messageBuffer = ""; 
+            }
         };
 
         ws.onerror = () => { isResolved = true; resolve(seasonsData); };
@@ -123,65 +138,45 @@ async function getEpisodesFromWS(movieKey, targetSeason) {
     });
 }
 
-// --- Home Screen Logic ---
-
-async function getHome(cb) {
-    try {
-        const data = await syncData();
-        const home = {
-            "New Movies": data.filter(i => !i.isTV).slice(0, 15).map(mapItem),
-            "New Series": data.filter(i => i.isTV).slice(0, 15).map(mapItem)
-        };
-        cb({ success: true, data: home });
-    } catch (e) {
-        cb({ success: false, message: e.message });
-    }
-}
-
-function mapItem(i) {
-    const poster = i.p ? String(i.p).replace(/^\/+/, "") : "";
-    return {
-        title: i.n.toUpperCase(),
-        url: `sf_${i.k}`,
-        posterUrl: poster ? `${TMDB_IMAGE_BASE}${poster}` : null,
-        type: i.isTV ? "series" : "movie"
-    };
-}
-
 // --- Main Extraction Logic ---
 
 async function getStreams(tmdbId, mediaType, season, episode) {
     try {
         console.log(`[StreamFlix] Request: ${mediaType} ${tmdbId}`);
-        const data = await syncData();
         const config = await getConfig();
 
-        // 1. Resolve Item
-        let item = data.find(i => i.t === tmdbId || (i.i && i.i.includes(tmdbId)));
-        
-        // Fallback: Title match via TMDB
-        if (!item && /^\d+$/.test(tmdbId)) {
-            const tmdbType = mediaType === 'movie' ? 'movie' : 'tv';
-            const res = await fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${process.env.TMDB_API_KEY}`);
-            const meta = await res.json();
-            const title = (meta.title || meta.name || "").toLowerCase();
-            if (title) {
-                item = data.find(i => i.n === title);
-            }
-        }
+        // 1. Resolve exact title from TMDB (used for surgical string search)
+        const tmdbType = mediaType === 'movie' ? 'movie' : 'tv';
+        const tmdbRes = await fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${process.env.TMDB_API_KEY}`);
+        const meta = await tmdbRes.json();
+        const targetTitle = (meta.title || meta.name || "").toLowerCase();
 
-        if (!item) return [];
+        // 2. Resolve Item using Surgical Database Search
+        const item = await findItemInDatabase(tmdbId, targetTitle);
+        
+        if (!item) {
+            console.warn("[StreamFlix] Item not found in database.");
+            return [];
+        }
 
         let path = "";
         if (item.isTV) {
             if (!season || !episode) return [];
+            
+            // Try WebSocket first
             const seasonsData = await getEpisodesFromWS(item.k, season);
             const episodes = seasonsData[season];
+            
             if (episodes) {
-                // Episodes in WS are often keys or array indices, handle both
                 const epKey = Object.keys(episodes)[episode - 1];
                 const epData = episodes[epKey];
                 if (epData && epData.link) path = epData.link;
+            }
+
+            // FIXED: Apply original author's fallback logic if WS fails
+            if (!path) {
+                console.log("[StreamFlix] WS failed, using author's fallback pattern.");
+                path = `tv/${item.k}/s${season}/episode${episode}.mkv`;
             }
         } else {
             path = item.l;
@@ -192,26 +187,29 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const cleanPath = path.startsWith('/') ? path.substring(1) : path;
         const streams = [];
 
+        // Apply mandatory Referer as per author's code
+        const STREAM_HEADERS = Object.assign({}, HEADERS, { "Referer": "https://api.streamflix.app" });
+
         const premiumBases = [...new Set(config.premium || [])];
         const publicBases = [...new Set(mediaType === 'movie' ? (config.movies || []) : (config.tv || []))];
 
         premiumBases.forEach(base => {
             streams.push({
                 name: "StreamFlix | Premium",
-                title: `${item.n.toUpperCase()} - 1080p`,
+                title: `${targetTitle.toUpperCase()} - 1080p`,
                 url: `${base}${cleanPath}`,
                 quality: "1080p",
-                headers: HEADERS
+                headers: STREAM_HEADERS
             });
         });
 
         publicBases.forEach(base => {
             streams.push({
                 name: "StreamFlix | High Speed",
-                title: `${item.n.toUpperCase()} - 720p`,
+                title: `${targetTitle.toUpperCase()} - 720p`,
                 url: `${base}${cleanPath}`,
                 quality: "720p",
-                headers: HEADERS
+                headers: STREAM_HEADERS
             });
         });
 
@@ -223,9 +221,8 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 }
 
-module.exports = { getStreams, getHome };
+module.exports = { getStreams };
 
 if (typeof global !== 'undefined') {
     global.getStreams = getStreams;
-    global.getHome = getHome;
 }

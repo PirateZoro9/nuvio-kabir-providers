@@ -1,6 +1,6 @@
 /**
  * sflix - Built from src/sflix/
- * Generated: 2026-04-28T04:49:49.904Z
+ * Generated: 2026-04-28T05:06:49.344Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -176,39 +176,6 @@ function resolvePlayInfo(id, se, ep, path) {
     return uniqueStreams(streamResults);
   });
 }
-function getHome(cb) {
-  return __async(this, null, function* () {
-    const categories = [
-      { id: "872031290915189720", name: "Trending" },
-      { id: "997144265920760504", name: "Hollywood" },
-      { id: "8617025562613270856", name: "Anime" }
-    ];
-    try {
-      const homeData = {};
-      for (const cat of categories) {
-        try {
-          const data = yield bffRequest(`${ENDPOINTS.RANKING}?id=${cat.id}&page=1&perPage=12`);
-          if (data == null ? void 0 : data.subjectList) {
-            homeData[cat.name] = data.subjectList.map((item) => {
-              var _a;
-              return {
-                title: item.title,
-                url: item.subjectId,
-                posterUrl: (_a = item.cover) == null ? void 0 : _a.url,
-                type: item.subjectType === 1 ? "movie" : "series",
-                score: parseFloat(item.imdbRatingValue) || 0
-              };
-            });
-          }
-        } catch (err) {
-        }
-      }
-      cb({ success: true, data: homeData });
-    } catch (e) {
-      cb({ success: false, errorCode: "SITE_OFFLINE", message: e.message });
-    }
-  });
-}
 function getStreams(tmdbId, mediaType, season, episode) {
   return __async(this, null, function* () {
     var _a;
@@ -250,4 +217,4 @@ function getStreams(tmdbId, mediaType, season, episode) {
     }
   });
 }
-module.exports = { getStreams, getHome };
+module.exports = { getStreams };

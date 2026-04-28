@@ -174,37 +174,6 @@ async function resolvePlayInfo(id, se, ep, path) {
     return uniqueStreams(streamResults);
 }
 
-// --- Nuvio Logic ---
-
-async function getHome(cb) {
-    const categories = [
-        { id: "872031290915189720", name: "Trending" },
-        { id: "997144265920760504", name: "Hollywood" },
-        { id: "8617025562613270856", name: "Anime" }
-    ];
-
-    try {
-        const homeData = {};
-        for (const cat of categories) {
-            try {
-                const data = await bffRequest(`${ENDPOINTS.RANKING}?id=${cat.id}&page=1&perPage=12`);
-                if (data?.subjectList) {
-                    homeData[cat.name] = data.subjectList.map(item => ({
-                        title: item.title,
-                        url: item.subjectId,
-                        posterUrl: item.cover?.url,
-                        type: item.subjectType === 1 ? "movie" : "series",
-                        score: parseFloat(item.imdbRatingValue) || 0
-                    }));
-                }
-            } catch (err) {}
-        }
-        cb({ success: true, data: homeData });
-    } catch (e) {
-        cb({ success: false, errorCode: "SITE_OFFLINE", message: e.message });
-    }
-}
-
 /**
  * Main function with STRICT MATCHING
  */
@@ -264,4 +233,4 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     }
 }
 
-module.exports = { getStreams, getHome };
+module.exports = { getStreams };
