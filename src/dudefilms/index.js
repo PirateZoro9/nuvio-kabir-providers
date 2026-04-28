@@ -55,9 +55,10 @@ function calculateTitleSimilarity(title1, title2, year1, year2) {
     const set1 = new Set(t1.split(' '));
     const set2 = new Set(t2.split(' '));
     const intersection = new Set([...set1].filter(x => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
     
-    let score = intersection.size / union.size;
+    // We score based on how much of the query (set1) is present in the target title (set2)
+    // because target titles on DudeFilms are often very long with extra tags (e.g., "[1080p] [Hindi Dubbed]").
+    let score = intersection.size / set1.size;
     
     if (year1 && year2 && year1 === year2) {
         score += 0.2;

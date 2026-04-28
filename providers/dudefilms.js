@@ -1,6 +1,6 @@
 /**
  * dudefilms - Built from src/dudefilms/
- * Generated: 2026-04-28T08:02:20.367Z
+ * Generated: 2026-04-28T08:07:09.597Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -84,8 +84,7 @@ function calculateTitleSimilarity(title1, title2, year1, year2) {
   const set1 = new Set(t1.split(" "));
   const set2 = new Set(t2.split(" "));
   const intersection = new Set([...set1].filter((x) => set2.has(x)));
-  const union = /* @__PURE__ */ new Set([...set1, ...set2]);
-  let score = intersection.size / union.size;
+  let score = intersection.size / set1.size;
   if (year1 && year2 && year1 === year2) {
     score += 0.2;
   }
