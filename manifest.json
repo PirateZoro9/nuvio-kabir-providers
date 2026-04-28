@@ -99,6 +99,32 @@
       "limited": false,
       "disabledPlatforms": [],
       "supportsExternalPlayer": true
+    },
+    {
+      "id": "dudefilms",
+      "name": "DudeFilms",
+      "description": "Multi-lang Movies & Series with HubCloud and Gofile support.",
+      "version": "1.0.0",
+      "author": "kabir",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/dudefilms.js",
+      "enabled": true,
+      "logo": "",
+      "contentLanguage": [
+        "hi",
+        "en"
+      ],
+      "formats": [
+        "m3u8",
+        "mp4",
+        "mkv"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
     }
   ]
 }
