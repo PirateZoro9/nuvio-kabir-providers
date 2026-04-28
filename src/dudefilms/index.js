@@ -1,12 +1,12 @@
 /**
- * DudeFilms Production Provider for Nuvio (V3 - Final)
+ * DudeFilms Production Provider for Nuvio (V4 - Final)
  * 
  * FIXED: 
  * - Multi-Step Redirection Logic (Finds 1080p/4K links correctly).
  * - Full Extractor Suite (GDFlix CF, BuzzServer, DriveBot, S3, Mega).
  * - Advanced Quality Normalization (Maps 4K, 2K, 1080p, 720p).
  * - Intelligent Title Matching (Handles 'Season X | Episode Y' formats).
- * - Nuvio Sandbox Optimized (High-speed, memory-safe).
+ * - Nuvio Sandbox Optimized (Hermes-safe loop checks).
  */
 
 const cheerio = require('cheerio-without-node-native');
@@ -56,8 +56,6 @@ function calculateTitleSimilarity(title1, title2, year1, year2) {
     const set2 = new Set(t2.split(' '));
     const intersection = new Set([...set1].filter(x => set2.has(x)));
     
-    // We score based on how much of the query (set1) is present in the target title (set2)
-    // because target titles on DudeFilms are often very long with extra tags (e.g., "[1080p] [Hindi Dubbed]").
     let score = intersection.size / set1.size;
     
     if (year1 && year2 && year1 === year2) {
@@ -91,7 +89,7 @@ async function extractGofile(url) {
         const acctRes = await fetch("https://api.gofile.io/accounts", { method: 'POST', headers: HEADERS });
         const acctData = await acctRes.json();
         const token = acctData.data.token;
-        const jsRes = await fetch("https://gofile.io/dist/js/config.js", { headers: HEADERS });
+        const jsRes = await fetch("https://gofile.io/dist/js/global.js", { headers: HEADERS });
         const jsText = await jsRes.text();
         const wtMatch = jsText.match(/appdata\.wt\s*=\s*["']([^"']+)["']/);
         if (!wtMatch) return [];
@@ -266,13 +264,12 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             const postTitle = linkEl.text();
             const href = linkEl.attr('href');
             
-            // Extract a possible year from the title (e.g. "Matka King (2024)")
             const yearMatch = postTitle.match(/\((\d{4})\)/);
             const postYear = yearMatch ? yearMatch[1] : null;
             
             const score = calculateTitleSimilarity(title, postTitle, year, postYear);
             
-            if (score > bestScore && score > 0.4) {
+            if (score > bestScore && score >= 0.8) { // Strict score for query match
                 bestScore = score;
                 postUrl = href;
             }
@@ -295,22 +292,21 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
             $p('h4').each((_, el) => {
                 if (seasonRegex.test($p(el).text())) {
-                    let sibling = $p(el).next();
-                    while (sibling.length && (sibling[0].name === 'p' || sibling[0].name === 'div')) {
-                        sibling.find('a.maxbutton').each((__, btn) => {
+                    let next = $p(el).next();
+                    // FIX: Use .is() for Hermes-safe loop checks
+                    while (next.length && (next.is('p') || next.is('div'))) {
+                        next.find('a.maxbutton').each((__, btn) => {
                             const btnText = $p(btn).text().toLowerCase();
-                            // Exclude blocked types
                             if (!['torrent', 'zip', 'rar', '7z'].some(t => btnText.includes(t))) {
                                 const href = $p(btn).attr('href');
                                 if (href) seasonButtons.push(href);
                             }
                         });
-                        sibling = sibling.next();
+                        next = next.next();
                     }
                 }
             });
 
-            // If no season buttons found in specific block, fallback to all buttons that might be season links
             if (seasonButtons.length === 0) {
                 $p('a.maxbutton').each((_, el) => {
                     const text = $p(el).text().toLowerCase();
@@ -321,7 +317,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 });
             }
 
-            // Drill down to Season Pages to find Episode Links
             await Promise.all([...new Set(seasonButtons)].map(async (sUrl) => {
                 try {
                     const sRes = await fetch(sUrl, { headers: HEADERS });
@@ -339,7 +334,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             }));
 
         } else {
-            // Movie logic
             $p('a.maxbutton').each((_, el) => {
                 const href = $p(el).attr('href');
                 const label = $p(el).text().toLowerCase();
@@ -353,7 +347,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
         // 4. Extract from identified URLs
         const finalStreams = (await Promise.all([...new Set(episodeUrls)].map(async (u) => {
-            // Recognize common domains
             if (u.includes('hubcloud') || u.includes('shikshakdaak.com')) return await extractHubCloud(u);
             if (u.includes('gdflix')) return await extractGDFlix(u);
             if (u.includes('gofile.io')) return await extractGofile(u);
@@ -373,7 +366,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
                 } catch (e) {}
             }
             
-            // Generic fallback for unknown redirectors
             try {
                 const r = await fetch(u, { headers: HEADERS });
                 const h = await r.text();

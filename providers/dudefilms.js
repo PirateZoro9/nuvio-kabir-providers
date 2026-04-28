@@ -1,6 +1,6 @@
 /**
  * dudefilms - Built from src/dudefilms/
- * Generated: 2026-04-28T08:07:09.597Z
+ * Generated: 2026-04-28T08:18:34.197Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -117,7 +117,7 @@ function extractGofile(url) {
       const acctRes = yield fetch("https://api.gofile.io/accounts", { method: "POST", headers: HEADERS });
       const acctData = yield acctRes.json();
       const token = acctData.data.token;
-      const jsRes = yield fetch("https://gofile.io/dist/js/config.js", { headers: HEADERS });
+      const jsRes = yield fetch("https://gofile.io/dist/js/global.js", { headers: HEADERS });
       const jsText = yield jsRes.text();
       const wtMatch = jsText.match(/appdata\.wt\s*=\s*["']([^"']+)["']/);
       if (!wtMatch)
@@ -291,7 +291,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
         const yearMatch = postTitle.match(/\((\d{4})\)/);
         const postYear = yearMatch ? yearMatch[1] : null;
         const score = calculateTitleSimilarity(title, postTitle, year, postYear);
-        if (score > bestScore && score > 0.4) {
+        if (score > bestScore && score >= 0.8) {
           bestScore = score;
           postUrl = href;
         }
@@ -308,9 +308,9 @@ function getStreams(tmdbId, mediaType, season, episode) {
         const seasonButtons = [];
         $p("h4").each((_, el) => {
           if (seasonRegex.test($p(el).text())) {
-            let sibling = $p(el).next();
-            while (sibling.length && (sibling[0].name === "p" || sibling[0].name === "div")) {
-              sibling.find("a.maxbutton").each((__, btn) => {
+            let next = $p(el).next();
+            while (next.length && (next.is("p") || next.is("div"))) {
+              next.find("a.maxbutton").each((__, btn) => {
                 const btnText = $p(btn).text().toLowerCase();
                 if (!["torrent", "zip", "rar", "7z"].some((t) => btnText.includes(t))) {
                   const href = $p(btn).attr("href");
@@ -318,7 +318,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
                     seasonButtons.push(href);
                 }
               });
-              sibling = sibling.next();
+              next = next.next();
             }
           }
         });
