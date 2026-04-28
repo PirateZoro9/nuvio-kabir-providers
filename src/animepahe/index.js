@@ -11,7 +11,7 @@ const HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 };
 
-const TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49";
+const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE    = "https://api.themoviedb.org/3";
 const TMDB_IMG     = "https://image.tmdb.org/t/p/w500";
 

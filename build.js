@@ -16,6 +16,7 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
 
 const srcDir = path.join(__dirname, 'src');
 const outDir = path.join(__dirname, 'providers');
@@ -69,6 +70,11 @@ async function buildProvider(providerName, options = {}) {
             minify: options.minify || false, // Minify if --minify flag is set
             sourcemap: false,
             external: EXTERNAL_MODULES,
+            define: {
+                'process.env.TMDB_API_KEY': JSON.stringify(process.env.TMDB_API_KEY || ""),
+                'process.env.DOFLIX_API_KEY': JSON.stringify(process.env.DOFLIX_API_KEY || ""),
+                'process.env.TMDB_API_KEY_ALT': JSON.stringify(process.env.TMDB_API_KEY_ALT || ""),
+            },
             banner: {
                 js: `/**\n * ${providerName} - Built from src/${providerName}/\n * Generated: ${new Date().toISOString()}\n */`
             },

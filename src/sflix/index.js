@@ -8,7 +8,7 @@ const cheerio = require('cheerio-without-node-native');
 
 // --- Configuration & Constants ---
 const BASE_URL = "https://sflix.film";
-const TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49";
+const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
 /**

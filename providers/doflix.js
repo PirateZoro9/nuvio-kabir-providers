@@ -1,7 +1,26 @@
 /**
  * doflix - Built from src/doflix/
- * Generated: 2026-04-19T04:53:12.506Z
+ * Generated: 2026-04-28T04:03:13.065Z
  */
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
     var fulfilled = (value) => {
@@ -24,8 +43,10 @@ var __async = (__this, __arguments, generator) => {
 };
 
 // src/doflix/index.js
+var cheerio = require("cheerio-without-node-native");
 var MAIN_URL = "https://panel.watchkaroabhi.com";
 var API_KEY = "qNhKLJiZVyoKdi9NCQGz8CIGrpUijujE";
+var TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500/";
 var HEADERS = {
   "Connection": "Keep-Alive",
   "User-Agent": "dooflix",
@@ -33,72 +54,113 @@ var HEADERS = {
   "X-Package-Name": "com.king.moja",
   "Accept": "application/json"
 };
-function normalizeQuality(qualityString) {
-  if (!qualityString)
-    return "Unknown";
-  const q = qualityString.toUpperCase();
-  if (q === "4K" || q === "2160P")
-    return "2160p";
-  if (q === "FHD" || q === "1080P")
-    return "1080p";
-  if (q === "HD" || q === "720P")
-    return "720p";
-  if (q === "SD" || q === "480P")
-    return "480p";
-  if (q === "360P")
-    return "360p";
-  return q;
+var STREAM_HEADERS = {
+  "Referer": "https://molop.art/",
+  "User-Agent": "dooflix"
+};
+function request(_0) {
+  return __async(this, arguments, function* (url, options = {}) {
+    const timeout = options.timeout || 12e3;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = yield fetch(url, __spreadProps(__spreadValues({}, options), {
+        headers: __spreadValues(__spreadValues({}, HEADERS), options.headers),
+        signal: controller.signal
+      }));
+      clearTimeout(timer);
+      if (!response.ok)
+        throw new Error(`API Error: ${response.status}`);
+      return yield response.json();
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  });
 }
-function getStreams(tmdbId, mediaType = "movie", season = null, episode = null) {
+function normalizeQuality(q) {
+  if (!q)
+    return "720p";
+  const quality = q.toUpperCase();
+  if (quality.includes("4K") || quality.includes("2160"))
+    return "2160p";
+  if (quality.includes("FHD") || quality.includes("1080"))
+    return "1080p";
+  if (quality.includes("HD") || quality.includes("720"))
+    return "720p";
+  if (quality.includes("SD") || quality.includes("480"))
+    return "480p";
+  return "720p";
+}
+function getHome(cb) {
+  return __async(this, null, function* () {
+    const categories = [
+      { name: "Recent Movies", url: `${MAIN_URL}/api/3/discover/movie?api_key=${API_KEY}&language=en&sort_by=primary_release_date.desc&page=1` },
+      { name: "Recent Series", url: `${MAIN_URL}/api/3/discover/tv?api_key=${API_KEY}&language=en&sort_by=first_air_date.desc&page=1` },
+      { name: "Trending Movies", url: `${MAIN_URL}/api/3/trending/movie/week?api_key=${API_KEY}&page=1` },
+      { name: "Trending Series", url: `${MAIN_URL}/api/3/trending/tv/week?api_key=${API_KEY}&page=1` }
+    ];
+    try {
+      const homeData = {};
+      const results = yield Promise.all(
+        categories.map((cat) => request(cat.url).catch(() => ({ results: [] })))
+      );
+      categories.forEach((cat, i) => {
+        const items = results[i].results || [];
+        if (items.length > 0) {
+          homeData[cat.name] = items.slice(0, 15).map((item) => ({
+            title: item.title || item.name || "Unknown",
+            url: item.id.toString(),
+            // Nuvio uses TMDB ID
+            posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path.replace(/^\/+/, "")}` : null,
+            type: item.first_air_date || item.name ? "series" : "movie",
+            score: parseFloat(item.vote_average) || 0
+          }));
+        }
+      });
+      cb({ success: true, data: homeData });
+    } catch (e) {
+      cb({ success: false, message: e.message });
+    }
+  });
+}
+function getStreams(tmdbId, mediaType, season, episode) {
   return __async(this, null, function* () {
     try {
+      console.log(`[DoFlix] Request: ${mediaType} ${tmdbId}`);
       let linksUrl = "";
       if (mediaType === "movie") {
         linksUrl = `${MAIN_URL}/api/3/movie/${tmdbId}/links?api_key=${API_KEY}`;
-      } else if (mediaType === "tv") {
-        if (!season || !episode)
-          return [];
-        linksUrl = `${MAIN_URL}/api/3/tv/${tmdbId}/season/${season}/episode/${episode}/links?api_key=${API_KEY}`;
       } else {
-        return [];
+        linksUrl = `${MAIN_URL}/api/3/tv/${tmdbId}/season/${season}/episode/${episode}/links?api_key=${API_KEY}`;
       }
-      const response = yield fetch(linksUrl, { method: "GET", headers: HEADERS });
-      if (!response.ok) {
-        console.error(`[DoFlix] API Error: ${response.status} ${response.statusText}`);
-        return [];
-      }
-      const data = yield response.json();
+      const data = yield request(linksUrl);
       const linksArray = mediaType === "movie" ? data.links : data.results;
-      if (!linksArray || !Array.isArray(linksArray)) {
+      if (!linksArray || !Array.isArray(linksArray))
         return [];
-      }
-      const streams = [];
-      linksArray.forEach((linkObj) => {
-        if (linkObj && linkObj.url) {
-          const host = linkObj.host || "DoFlix Stream";
-          const rawQuality = linkObj.quality || "Auto";
-          const finalQuality = normalizeQuality(rawQuality);
-          streams.push({
-            name: "DoFlix",
-            title: `${host} - ${finalQuality}`,
-            url: linkObj.url,
-            quality: finalQuality,
-            // The Kotlin code uses this specific referer for video playback
-            headers: {
-              "Referer": "https://molop.art/"
-            }
-          });
-        }
-      });
+      const streams = linksArray.map((link) => {
+        if (!link.url)
+          return null;
+        const quality = normalizeQuality(link.quality);
+        const host = link.host || "DoFlix Stream";
+        const finalUrl = link.url.includes(".m3u8") ? link.url : `${link.url}#.m3u8`;
+        return {
+          name: `DoFlix | ${host}`,
+          title: `${host} - ${quality}`,
+          url: finalUrl,
+          quality,
+          headers: STREAM_HEADERS
+        };
+      }).filter(Boolean);
       return streams;
     } catch (e) {
-      console.error("[DoFlix] getStreams error:", e.message);
+      console.error(`[DoFlix] Stream Error: ${e.message}`);
       return [];
     }
   });
 }
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = { getStreams };
-} else {
-  global.getStreams = { getStreams };
+module.exports = { getStreams, getHome };
+if (typeof global !== "undefined") {
+  global.getStreams = getStreams;
+  global.getHome = getHome;
 }
