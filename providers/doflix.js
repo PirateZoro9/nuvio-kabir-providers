@@ -1,6 +1,6 @@
 /**
  * doflix - Built from src/doflix/
- * Generated: 2026-04-28T04:03:13.065Z
+ * Generated: 2026-04-28T04:25:43.062Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -60,20 +60,14 @@ var STREAM_HEADERS = {
 };
 function request(_0) {
   return __async(this, arguments, function* (url, options = {}) {
-    const timeout = options.timeout || 12e3;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
     try {
       const response = yield fetch(url, __spreadProps(__spreadValues({}, options), {
-        headers: __spreadValues(__spreadValues({}, HEADERS), options.headers),
-        signal: controller.signal
+        headers: __spreadValues(__spreadValues({}, HEADERS), options.headers)
       }));
-      clearTimeout(timer);
       if (!response.ok)
         throw new Error(`API Error: ${response.status}`);
       return yield response.json();
     } catch (e) {
-      clearTimeout(timer);
       throw e;
     }
   });
@@ -111,7 +105,6 @@ function getHome(cb) {
           homeData[cat.name] = items.slice(0, 15).map((item) => ({
             title: item.title || item.name || "Unknown",
             url: item.id.toString(),
-            // Nuvio uses TMDB ID
             posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path.replace(/^\/+/, "")}` : null,
             type: item.first_air_date || item.name ? "series" : "movie",
             score: parseFloat(item.vote_average) || 0
@@ -142,7 +135,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
         if (!link.url)
           return null;
         const quality = normalizeQuality(link.quality);
-        const host = link.host || "DoFlix Stream";
+        const host = link.host || "DoFlix";
         const finalUrl = link.url.includes(".m3u8") ? link.url : `${link.url}#.m3u8`;
         return {
           name: `DoFlix | ${host}`,

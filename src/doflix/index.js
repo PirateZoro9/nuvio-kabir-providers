@@ -1,17 +1,16 @@
 /**
  * DoFlix Production Provider for Nuvio
- * Ported from the high-quality Stremio Addon source.
  * 
+ * FIXED: Removed 'setTimeout' (not supported in this sandbox).
  * Features:
- * - Home Screen (Catalogs): Recent Movies/Series, Trending Movies/Series.
- * - Direct TMDB ID Mapping (Proxied).
- * - High-quality link extraction with ExoPlayer hacks.
- * - Secure API key injection via build-time Define.
+ * - Home Screen (Catalogs) support.
+ * - Direct TMDB ID Mapping.
+ * - Quality normalization.
  */
 
 const cheerio = require('cheerio-without-node-native');
 
-// --- Configuration (Mirroring constants.js) ---
+// --- Configuration ---
 const MAIN_URL = "https://panel.watchkaroabhi.com";
 const API_KEY = process.env.DOFLIX_API_KEY;
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
@@ -31,24 +30,17 @@ const STREAM_HEADERS = {
     "User-Agent": "dooflix"
 };
 
-// --- Networking Layer (Mirroring fetcher.js) ---
+// --- Networking Layer ---
 
 async function request(url, options = {}) {
-    const timeout = options.timeout || 12000;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-
     try {
         const response = await fetch(url, {
             ...options,
-            headers: { ...HEADERS, ...options.headers },
-            signal: controller.signal
+            headers: { ...HEADERS, ...options.headers }
         });
-        clearTimeout(timer);
         if (!response.ok) throw new Error(`API Error: ${response.status}`);
         return await response.json();
     } catch (e) {
-        clearTimeout(timer);
         throw e;
     }
 }
@@ -65,7 +57,7 @@ function normalizeQuality(q) {
     return "720p";
 }
 
-// --- Catalog/Home Logic (Mirroring catalog.js & data-store.js) ---
+// --- Home Logic ---
 
 async function getHome(cb) {
     const categories = [
@@ -86,7 +78,7 @@ async function getHome(cb) {
             if (items.length > 0) {
                 homeData[cat.name] = items.slice(0, 15).map(item => ({
                     title: item.title || item.name || "Unknown",
-                    url: item.id.toString(), // Nuvio uses TMDB ID
+                    url: item.id.toString(),
                     posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path.replace(/^\/+/, "")}` : null,
                     type: item.first_air_date || item.name ? "series" : "movie",
                     score: parseFloat(item.vote_average) || 0
@@ -100,7 +92,7 @@ async function getHome(cb) {
     }
 }
 
-// --- Stream Logic (Mirroring stream.js) ---
+// --- Stream Logic ---
 
 async function getStreams(tmdbId, mediaType, season, episode) {
     try {
@@ -120,11 +112,8 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
         const streams = linksArray.map(link => {
             if (!link.url) return null;
-
             const quality = normalizeQuality(link.quality);
-            const host = link.host || "DoFlix Stream";
-            
-            // Mirroring the ExoPlayer hack from stream.js
+            const host = link.host || "DoFlix";
             const finalUrl = link.url.includes('.m3u8') ? link.url : `${link.url}#.m3u8`;
 
             return {
@@ -142,8 +131,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         return [];
     }
 }
-
-// --- Module Exports ---
 
 module.exports = { getStreams, getHome };
 
