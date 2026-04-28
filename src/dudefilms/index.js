@@ -47,6 +47,25 @@ function normalizeQuality(text) {
     return "720p";
 }
 
+function calculateTitleSimilarity(title1, title2, year1, year2) {
+    const normalize = (t) => t.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
+    const t1 = normalize(title1);
+    const t2 = normalize(title2);
+    
+    const set1 = new Set(t1.split(' '));
+    const set2 = new Set(t2.split(' '));
+    const intersection = new Set([...set1].filter(x => set2.has(x)));
+    const union = new Set([...set1, ...set2]);
+    
+    let score = intersection.size / union.size;
+    
+    if (year1 && year2 && year1 === year2) {
+        score += 0.2;
+    }
+    
+    return score;
+}
+
 async function syncDomain() {
     const now = Date.now();
     if (now - lastSync < 3600000) return activeDomain;
@@ -239,17 +258,22 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const $s = cheerio.load(searchHtml);
 
         let postUrl = "";
+        let bestScore = 0;
+        
         $s('div.simple-grid-grid-post').each((_, el) => {
             const linkEl = $s(el).find('h3 a');
-            const postTitle = linkEl.text().toLowerCase();
+            const postTitle = linkEl.text();
             const href = linkEl.attr('href');
-            // More flexible matching
-            const cleanPostTitle = postTitle.replace(/\(\d{4}\)/, "").trim();
-            if (cleanPostTitle.includes(title) || title.includes(cleanPostTitle)) {
-                // TV shows often omit the year on DudeFilms, so we relax the check for them
-                if (!year || mediaType === 'tv' || postTitle.includes(year)) {
-                    postUrl = href;
-                }
+            
+            // Extract a possible year from the title (e.g. "Matka King (2024)")
+            const yearMatch = postTitle.match(/\((\d{4})\)/);
+            const postYear = yearMatch ? yearMatch[1] : null;
+            
+            const score = calculateTitleSimilarity(title, postTitle, year, postYear);
+            
+            if (score > bestScore && score > 0.4) {
+                bestScore = score;
+                postUrl = href;
             }
         });
 

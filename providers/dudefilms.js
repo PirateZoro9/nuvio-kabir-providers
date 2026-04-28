@@ -1,6 +1,6 @@
 /**
  * dudefilms - Built from src/dudefilms/
- * Generated: 2026-04-28T07:53:12.557Z
+ * Generated: 2026-04-28T08:02:20.367Z
  */
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -76,6 +76,20 @@ function normalizeQuality(text) {
   if (/\b(480p|sd|576p|540p)\b/.test(s))
     return "480p";
   return "720p";
+}
+function calculateTitleSimilarity(title1, title2, year1, year2) {
+  const normalize = (t) => t.toLowerCase().replace(/[^\w\s]/gi, "").replace(/\s+/g, " ").trim();
+  const t1 = normalize(title1);
+  const t2 = normalize(title2);
+  const set1 = new Set(t1.split(" "));
+  const set2 = new Set(t2.split(" "));
+  const intersection = new Set([...set1].filter((x) => set2.has(x)));
+  const union = /* @__PURE__ */ new Set([...set1, ...set2]);
+  let score = intersection.size / union.size;
+  if (year1 && year2 && year1 === year2) {
+    score += 0.2;
+  }
+  return score;
 }
 function syncDomain() {
   return __async(this, null, function* () {
@@ -270,15 +284,17 @@ function getStreams(tmdbId, mediaType, season, episode) {
       const searchHtml = yield searchRes.text();
       const $s = cheerio.load(searchHtml);
       let postUrl = "";
+      let bestScore = 0;
       $s("div.simple-grid-grid-post").each((_, el) => {
         const linkEl = $s(el).find("h3 a");
-        const postTitle = linkEl.text().toLowerCase();
+        const postTitle = linkEl.text();
         const href = linkEl.attr("href");
-        const cleanPostTitle = postTitle.replace(/\(\d{4}\)/, "").trim();
-        if (cleanPostTitle.includes(title) || title.includes(cleanPostTitle)) {
-          if (!year || mediaType === "tv" || postTitle.includes(year)) {
-            postUrl = href;
-          }
+        const yearMatch = postTitle.match(/\((\d{4})\)/);
+        const postYear = yearMatch ? yearMatch[1] : null;
+        const score = calculateTitleSimilarity(title, postTitle, year, postYear);
+        if (score > bestScore && score > 0.4) {
+          bestScore = score;
+          postUrl = href;
         }
       });
       if (!postUrl)
