@@ -1,6 +1,6 @@
 /**
  * allwish - Built from src/allwish/
- * Generated: 2026-04-28T04:43:19.037Z
+ * Generated: 2026-04-28T04:49:49.649Z
  */
 var __defProp = Object.defineProperty;
 var __getOwnPropSymbols = Object.getOwnPropertySymbols;

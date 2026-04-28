@@ -1,6 +1,6 @@
 /**
  * streamflix - Built from src/streamflix/
- * Generated: 2026-04-28T04:43:19.792Z
+ * Generated: 2026-04-28T04:49:49.948Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -24,6 +24,7 @@ var __async = (__this, __arguments, generator) => {
 };
 
 // src/streamflix/index.js
+var cheerio = require("cheerio-without-node-native");
 var MAIN_URL = "https://api.streamflix.app";
 var WS_URL = "wss://chilflix-410be-default-rtdb.asia-southeast1.firebasedatabase.app/.ws?ns=chilflix-410be-default-rtdb&v=5";
 var TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500/";
@@ -41,11 +42,24 @@ function syncData() {
     if (cachedData.length > 0 && now - lastSync < 36e5)
       return cachedData;
     try {
+      console.log("[StreamFlix] Syncing database...");
       const res = yield fetch(`${MAIN_URL}/data.json`, { headers: HEADERS });
-      const json = yield res.json();
+      const text = yield res.text();
+      if (!text)
+        throw new Error("Empty database response");
+      const json = JSON.parse(text);
       if (json && json.data) {
-        cachedData = json.data.filter((i) => i.moviename && i.moviekey);
+        cachedData = json.data.filter((i) => i.moviename && i.moviekey).map((i) => ({
+          n: i.moviename.toLowerCase(),
+          k: i.moviekey,
+          t: i.tmdb,
+          i: i.movieimdb,
+          p: i.movieposter,
+          l: i.movielink,
+          isTV: !!i.isTV
+        }));
         lastSync = now;
+        console.log(`[StreamFlix] Database synced: ${cachedData.length} items.`);
       }
     } catch (e) {
       console.error(`[StreamFlix] Data sync failed: ${e.message}`);
@@ -59,64 +73,43 @@ function getConfig() {
       return cachedConfig;
     try {
       const res = yield fetch(`${MAIN_URL}/config/config-streamflixapp.json`, { headers: HEADERS });
-      cachedConfig = yield res.json();
+      const text = yield res.text();
+      cachedConfig = JSON.parse(text);
       return cachedConfig;
     } catch (e) {
       return { premium: [], movies: [], tv: [] };
     }
   });
 }
-function getEpisodesFromWS(movieKey, totalSeasons = 1) {
+function getEpisodesFromWS(movieKey, targetSeason) {
   return __async(this, null, function* () {
-    if (typeof WebSocket === "undefined") {
-      console.error("[StreamFlix] WebSocket is not supported in this environment.");
+    if (typeof WebSocket === "undefined")
       return {};
-    }
     return new Promise((resolve) => {
       const ws = new WebSocket(WS_URL);
       const seasonsData = {};
-      let seasonsCompleted = 0;
       let isResolved = false;
-      const timeout = setTimeout(() => {
-        if (!isResolved) {
-          isResolved = true;
-          ws.close();
-          resolve(seasonsData);
-        }
-      }, 1e4);
       ws.onopen = () => {
-        for (let s = 1; s <= totalSeasons; s++) {
-          ws.send(JSON.stringify({
-            t: "d",
-            d: { a: "q", r: s, b: { p: `Data/${movieKey}/seasons/${s}/episodes`, h: "" } }
-          }));
-        }
+        ws.send(JSON.stringify({
+          t: "d",
+          d: { a: "q", r: 1, b: { p: `Data/${movieKey}/seasons/${targetSeason}/episodes`, h: "" } }
+        }));
       };
       ws.onmessage = (event) => {
         if (isResolved)
           return;
         const text = event.data;
-        if (/^\d+$/.test(text.trim()))
-          return;
         try {
           const json = JSON.parse(text);
-          if (json.t === "d" && json.d) {
+          if (json.t === "d" && json.d && json.d.b) {
             const b = json.d.b;
-            if (b && b.s === "ok") {
-              seasonsCompleted++;
-              if (seasonsCompleted >= totalSeasons) {
-                isResolved = true;
-                clearTimeout(timeout);
-                ws.close();
-                resolve(seasonsData);
+            if (b.s === "ok" || b.d) {
+              if (b.d) {
+                seasonsData[targetSeason] = b.d;
               }
-            } else if (b && b.d) {
-              const path = b.p || "";
-              const seasonMatch = path.match(/seasons\/(\d+)\/episodes/);
-              const sNum = seasonMatch ? parseInt(seasonMatch[1]) : 1;
-              if (!seasonsData[sNum])
-                seasonsData[sNum] = {};
-              Object.keys(b.d).forEach((k) => seasonsData[sNum][k] = b.d[k]);
+              isResolved = true;
+              ws.close();
+              resolve(seasonsData);
             }
           }
         } catch (e) {
@@ -147,36 +140,29 @@ function getHome(cb) {
     }
   });
 }
-function mapItem(item) {
-  const poster = item.movieposter ? String(item.movieposter).replace(/^\/+/, "") : "";
+function mapItem(i) {
+  const poster = i.p ? String(i.p).replace(/^\/+/, "") : "";
   return {
-    title: item.moviename,
-    url: `sf_${item.moviekey}`,
+    title: i.n.toUpperCase(),
+    url: `sf_${i.k}`,
     posterUrl: poster ? `${TMDB_IMAGE_BASE}${poster}` : null,
-    type: item.isTV ? "series" : "movie"
+    type: i.isTV ? "series" : "movie"
   };
 }
 function getStreams(tmdbId, mediaType, season, episode) {
   return __async(this, null, function* () {
-    var _a;
     try {
       console.log(`[StreamFlix] Request: ${mediaType} ${tmdbId}`);
       const data = yield syncData();
       const config = yield getConfig();
-      let item = data.find((i) => {
-        var _a2;
-        return i.tmdb === tmdbId || ((_a2 = i.movieimdb) == null ? void 0 : _a2.includes(tmdbId));
-      });
+      let item = data.find((i) => i.t === tmdbId || i.i && i.i.includes(tmdbId));
       if (!item && /^\d+$/.test(tmdbId)) {
         const tmdbType = mediaType === "movie" ? "movie" : "tv";
         const res = yield fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${"1865f43a0549ca50d341dd9ab8b29f49"}`);
         const meta = yield res.json();
         const title = (meta.title || meta.name || "").toLowerCase();
         if (title) {
-          item = data.find((i) => {
-            var _a2;
-            return ((_a2 = i.moviename) == null ? void 0 : _a2.toLowerCase()) === title;
-          });
+          item = data.find((i) => i.n === title);
         }
       }
       if (!item)
@@ -185,12 +171,16 @@ function getStreams(tmdbId, mediaType, season, episode) {
       if (item.isTV) {
         if (!season || !episode)
           return [];
-        const seasonsData = yield getEpisodesFromWS(item.moviekey, season);
-        const epData = (_a = seasonsData[season]) == null ? void 0 : _a[episode - 1];
-        if (epData && epData.link)
-          path = epData.link;
+        const seasonsData = yield getEpisodesFromWS(item.k, season);
+        const episodes = seasonsData[season];
+        if (episodes) {
+          const epKey = Object.keys(episodes)[episode - 1];
+          const epData = episodes[epKey];
+          if (epData && epData.link)
+            path = epData.link;
+        }
       } else {
-        path = item.movielink;
+        path = item.l;
       }
       if (!path)
         return [];
@@ -201,7 +191,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
       premiumBases.forEach((base) => {
         streams.push({
           name: "StreamFlix | Premium",
-          title: `${item.moviename} - 1080p`,
+          title: `${item.n.toUpperCase()} - 1080p`,
           url: `${base}${cleanPath}`,
           quality: "1080p",
           headers: HEADERS
@@ -210,7 +200,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
       publicBases.forEach((base) => {
         streams.push({
           name: "StreamFlix | High Speed",
-          title: `${item.moviename} - 720p`,
+          title: `${item.n.toUpperCase()} - 720p`,
           url: `${base}${cleanPath}`,
           quality: "720p",
           headers: HEADERS
@@ -218,7 +208,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
       });
       return streams;
     } catch (e) {
-      console.error(`[StreamFlix] getStreams error: ${e.message}`);
+      console.error(`[StreamFlix] Fatal Error: ${e.message}`);
       return [];
     }
   });
