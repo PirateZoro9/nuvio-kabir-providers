@@ -186,21 +186,19 @@ async function processTV(item, config, s, e, tmdbTitle) {
 }
 
 function createStreamObject(url, quality, langs, item, tmdbTitle, s, e, epName) {
-    const langStr = langs.length > 1 ? "Multi" : (langs[0] || "Hindi");
     const titleLines = [
         tmdbTitle + (item.movieyear ? ` (${item.movieyear})` : ""),
-        `📺 ${quality}  🔊 ${langs.join(" + ")}`
+        `📺 ${quality}`
     ];
     
     if (s && e) {
         titleLines.push(`📌 S${s}E${e} - ${epName || "Episode"}`);
     }
 
-    titleLines.push(`⭐ Rating: ${item.movierating || "N/A"}`);
     titleLines.push(`by Kabir · StreamFlix 2.0 Port`);
 
     return {
-        name: `🎬 StreamFlix | ${quality} | ${langStr}`,
+        name: `🎬 StreamFlix | ${quality}`,
         title: titleLines.join("\n"),
         url: url,
         quality: quality,

@@ -1,6 +1,6 @@
 /**
  * streamflix - Built from src/streamflix/
- * Generated: 2026-04-29T04:34:00.313Z
+ * Generated: 2026-04-29T04:43:51.634Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -180,18 +180,16 @@ function processTV(item, config, s, e, tmdbTitle) {
   });
 }
 function createStreamObject(url, quality, langs, item, tmdbTitle, s, e, epName) {
-  const langStr = langs.length > 1 ? "Multi" : langs[0] || "Hindi";
   const titleLines = [
     tmdbTitle + (item.movieyear ? ` (${item.movieyear})` : ""),
-    `\u{1F4FA} ${quality}  \u{1F50A} ${langs.join(" + ")}`
+    `\u{1F4FA} ${quality}`
   ];
   if (s && e) {
     titleLines.push(`\u{1F4CC} S${s}E${e} - ${epName || "Episode"}`);
   }
-  titleLines.push(`\u2B50 Rating: ${item.movierating || "N/A"}`);
   titleLines.push(`by Kabir \xB7 StreamFlix 2.0 Port`);
   return {
-    name: `\u{1F3AC} StreamFlix | ${quality} | ${langStr}`,
+    name: `\u{1F3AC} StreamFlix | ${quality}`,
     title: titleLines.join("\n"),
     url,
     quality,
