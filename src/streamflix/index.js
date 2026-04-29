@@ -1,8 +1,8 @@
 /**
  * StreamFlix — Nuvio Provider
  * 
- * Ported with Sandbox-Safe Proxy Architecture to avoid 2.7MB JSON truncation.
- * Features: Multi-Audio, Firebase WebSockets for TV, Dynamic CDN Rotation.
+ * Ported with Sandbox-Safe Proxy Architecture.
+ * Fix: Added IMDB ID support to ensure compatibility with Android Mobile.
  */
 
 const TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
@@ -10,7 +10,7 @@ const SF_BASE = "https://api.streamflix.app";
 const CONFIG_URL = `${SF_BASE}/config/config-streamflixapp.json`;
 const FIREBASE_DB = "https://chilflix-410be-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-// ⚠️ IMPORTANT: Update this URL after deploying your Google Apps Script Proxy
+// Integrated Proxy URL
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec"; 
 
 const HEADERS = {
@@ -24,32 +24,27 @@ const HEADERS = {
  */
 async function getStreams(tmdbId, mediaType = "movie", season = null, episode = null) {
     try {
-        console.log(`[StreamFlix] Request: TMDB=${tmdbId}, Type=${mediaType}, S=${season}, E=${episode}`);
+        console.log(`[StreamFlix] Request: ID=${tmdbId}, Type=${mediaType}, S=${season}, E=${episode}`);
 
-        // 1. Resolve TMDB Title
-        let mediaInfo;
-        const isNumericId = /^\d+$/.test(tmdbId);
-        if (isNumericId) {
-            mediaInfo = await getTMDBDetails(tmdbId, mediaType);
-        } else {
-            console.log("[StreamFlix] Non-numeric ID provided, using as title.");
-            mediaInfo = { title: tmdbId, year: "" };
+        // 1. Resolve Metadata (Smart Resolver for TV vs Mobile)
+        const mediaInfo = await getMediaDetails(tmdbId, mediaType);
+        if (!mediaInfo || !mediaInfo.title) {
+            console.log("[StreamFlix] Could not resolve media details (TMDB match failed).");
+            return [];
         }
-        
-        if (!mediaInfo) return [];
 
         // 2. Fetch Config (CDN Domains)
         const config = await getConfig();
         if (!config) return [];
 
-        // 3. Find Content Metadata (via Proxy or Direct)
-        const items = await fetchMetadata(tmdbId, mediaInfo.title);
+        // 3. Find Content Metadata (Proxy Filtering)
+        const items = await fetchMetadata(mediaInfo.id || tmdbId, mediaInfo.title);
         if (!items || items.length === 0) {
-            console.log("[StreamFlix] No matches found.");
+            console.log("[StreamFlix] No matches found in StreamFlix database.");
             return [];
         }
 
-        // 4. Generate Streams for all matches (Supports Multi-Language entries)
+        // 4. Generate Streams
         const allStreams = [];
         for (const item of items) {
             let streams = [];
@@ -62,62 +57,70 @@ async function getStreams(tmdbId, mediaType = "movie", season = null, episode = 
         }
 
         // 5. Final Sort (1080p first)
-        return allStreams.sort((a, b) => {
-            const qA = parseInt(a.quality) || 0;
-            const qB = parseInt(b.quality) || 0;
-            return qB - qA;
-        });
+        return allStreams.sort((a, b) => (parseInt(b.quality) || 0) - (parseInt(a.quality) || 0));
 
     } catch (e) {
-        console.error(`[StreamFlix] Error: ${e.message}`);
+        console.error(`[StreamFlix] Global Error: ${e.message}`);
         return [];
     }
 }
 
 /**
- * Metadata Fetcher: Uses Proxy to bypass Hermes memory limits
+ * Smart Resolver: Handles Numeric IDs (TV) and tt... IDs (Mobile)
  */
+async function getMediaDetails(id, type) {
+    const isImdb = id.toString().startsWith("tt");
+    const tmdbType = type === "tv" ? "tv" : "movie";
+    
+    try {
+        if (isImdb) {
+            console.log(`[StreamFlix] Mobile detected (IMDB ID: ${id}). Resolving to TMDB...`);
+            const findUrl = `https://api.themoviedb.org/3/find/${id}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+            const res = await fetch(findUrl);
+            const data = await res.json();
+            const results = type === "tv" ? data.tv_results : data.movie_results;
+            
+            if (results && results.length > 0) {
+                const item = results[0];
+                return {
+                    id: item.id,
+                    title: type === "tv" ? item.name : item.title,
+                    year: (item.first_air_date || item.release_date || "").split("-")[0]
+                };
+            }
+            return null;
+        } else {
+            // Standard TV numeric ID
+            const url = `https://api.themoviedb.org/3/${tmdbType}/${id}?api_key=${TMDB_API_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            return {
+                id: data.id,
+                title: type === "tv" ? data.name : data.title,
+                year: (data.first_air_date || data.release_date || "").split("-")[0]
+            };
+        }
+    } catch (e) {
+        console.error(`[StreamFlix] TMDB Resolver Failed: ${e.message}`);
+        return null;
+    }
+}
+
 async function fetchMetadata(tmdbId, title) {
     if (PROXY_URL) {
-        console.log("[StreamFlix] Using Proxy for metadata...");
+        console.log(`[StreamFlix] Searching Proxy: ${title} (ID: ${tmdbId})`);
         const proxyReq = `${PROXY_URL}?tmdb=${tmdbId}&title=${encodeURIComponent(title)}`;
         const res = await fetch(proxyReq);
         const json = await res.json();
         return json.success ? json.data : [];
-    } else {
-        console.log("[StreamFlix] WARNING: No Proxy defined. Attempting direct fetch (High Crash Risk in Nuvio)...");
-        const res = await fetch(`${SF_BASE}/data.json`, { headers: HEADERS });
-        const text = await res.text(); 
-        const json = JSON.parse(text);
-        const data = json.data || [];
-        
-        return data.filter(item => 
-            (item.tmdb && item.tmdb.toString() === tmdbId.toString()) || 
-            (item.moviename && item.moviename.toLowerCase().includes(title.toLowerCase()))
-        );
     }
+    return [];
 }
 
 async function getConfig() {
     try {
         const res = await fetch(CONFIG_URL, { headers: HEADERS });
         return await res.json();
-    } catch (e) {
-        console.error("[StreamFlix] Config fetch failed");
-        return null;
-    }
-}
-
-async function getTMDBDetails(tmdbId, mediaType) {
-    const type = mediaType === "tv" ? "tv" : "movie";
-    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}`;
-    try {
-        const res = await fetch(url);
-        const data = await res.json();
-        return {
-            title: mediaType === "tv" ? data.name : data.title,
-            year: (data.first_air_date || data.release_date || "").split("-")[0]
-        };
     } catch (e) { return null; }
 }
 
@@ -127,21 +130,16 @@ async function processMovie(item, config, tmdbTitle) {
     if (!path) return [];
 
     const langs = detectLanguages(item);
-    
-    // Add Premium Links
     if (config.premium) {
         config.premium.forEach(base => {
             streams.push(createStreamObject(base + path, "1080p", langs, item, tmdbTitle));
         });
     }
-
-    // Add Standard Links
     if (config.movies) {
         config.movies.forEach(base => {
             streams.push(createStreamObject(base + path, "720p", langs, item, tmdbTitle));
         });
     }
-
     return streams;
 }
 
@@ -151,57 +149,38 @@ async function processTV(item, config, s, e, tmdbTitle) {
     if (!movieKey) return [];
 
     const langs = detectLanguages(item);
-
-    // Try to get direct episode link from Firebase
     try {
         const epRes = await fetch(`${FIREBASE_DB}/Data/${movieKey}/seasons/${s}/episodes/${e - 1}.json`);
         const epData = await epRes.json();
-        
         if (epData && epData.link) {
             const path = epData.link;
-            if (config.premium) {
-                config.premium.forEach(base => {
-                    streams.push(createStreamObject(base + path, "1080p", langs, item, tmdbTitle, s, e, epData.name));
-                });
-            }
-            if (config.tv) {
-                config.tv.forEach(base => {
-                    streams.push(createStreamObject(base + path, "720p", langs, item, tmdbTitle, s, e, epData.name));
-                });
-            }
+            if (config.premium) config.premium.forEach(base => streams.push(createStreamObject(base + path, "1080p", langs, item, tmdbTitle, s, e, epData.name)));
+            if (config.tv) config.tv.forEach(base => streams.push(createStreamObject(base + path, "720p", langs, item, tmdbTitle, s, e, epData.name)));
         }
-    } catch (err) {
-        console.log("[StreamFlix] Firebase lookup failed, trying pattern fallback...");
-    }
+    } catch (err) {}
 
-    // Fallback Pattern if Firebase fails
     if (streams.length === 0 && config.premium) {
         const fallbackPath = `tv/${movieKey}/s${s}/episode${e}.mkv`;
         config.premium.forEach(base => {
             streams.push(createStreamObject(base + fallbackPath, "720p", langs, item, tmdbTitle, s, e, "Episode " + e));
         });
     }
-
     return streams;
 }
 
 function createStreamObject(url, quality, langs, item, tmdbTitle, s, e, epName) {
     const titleLines = [
         tmdbTitle + (item.movieyear ? ` (${item.movieyear})` : ""),
-        `📺 ${quality}`
+        `\uD83D\uDCFA ${quality}`
     ];
-    
-    if (s && e) {
-        titleLines.push(`📌 S${s}E${e} - ${epName || "Episode"}`);
-    }
-
-    titleLines.push(`by Kabir · StreamFlix 2.0 Port`);
+    if (s && e) titleLines.push(`\uD83D\uDCCC S${s}E${e} - ${epName || "Episode"}`);
+    titleLines.push(`by Kabir \xB7 StreamFlix 2.0 Port`);
 
     return {
-        name: `🎬 StreamFlix | ${quality}`,
+        name: `\uD83C\uDFAC StreamFlix | ${quality}`,
         title: titleLines.join("\n"),
-        url: url,
-        quality: quality,
+        url,
+        quality,
         headers: {
             "User-Agent": HEADERS["User-Agent"],
             "Referer": "https://api.streamflix.app/",
@@ -213,20 +192,8 @@ function createStreamObject(url, quality, langs, item, tmdbTitle, s, e, epName) 
 function detectLanguages(item) {
     const title = (item.moviename || "").toLowerCase();
     const found = [];
-    const map = {
-        "hindi": "Hindi",
-        "tamil": "Tamil",
-        "telugu": "Telugu",
-        "english": "English",
-        "kannada": "Kannada",
-        "malayalam": "Malayalam",
-        "bengali": "Bengali"
-    };
-
-    for (const key in map) {
-        if (title.includes(key)) found.push(map[key]);
-    }
-
+    const map = { "hindi": "Hindi", "tamil": "Tamil", "telugu": "Telugu", "english": "English", "kannada": "Kannada", "malayalam": "Malayalam", "bengali": "Bengali" };
+    for (const key in map) { if (title.includes(key)) found.push(map[key]); }
     return found.length > 0 ? found : ["Hindi"];
 }
 
