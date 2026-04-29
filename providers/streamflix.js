@@ -1,6 +1,6 @@
 /**
  * streamflix - Built from src/streamflix/
- * Generated: 2026-04-29T05:18:55.028Z
+ * Generated: 2026-04-29T06:17:49.061Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -138,11 +138,6 @@ function processMovie(item, config, tmdbTitle) {
         streams.push(createStreamObject(base + path, "1080p", langs, item, tmdbTitle));
       });
     }
-    if (config.movies) {
-      config.movies.forEach((base) => {
-        streams.push(createStreamObject(base + path, "720p", langs, item, tmdbTitle));
-      });
-    }
     return streams;
   });
 }
@@ -160,16 +155,8 @@ function processTV(item, config, s, e, tmdbTitle) {
         const path = epData.link;
         if (config.premium)
           config.premium.forEach((base) => streams.push(createStreamObject(base + path, "1080p", langs, item, tmdbTitle, s, e, epData.name)));
-        if (config.tv)
-          config.tv.forEach((base) => streams.push(createStreamObject(base + path, "720p", langs, item, tmdbTitle, s, e, epData.name)));
       }
     } catch (err) {
-    }
-    if (streams.length === 0 && config.premium) {
-      const fallbackPath = `tv/${movieKey}/s${s}/episode${e}.mkv`;
-      config.premium.forEach((base) => {
-        streams.push(createStreamObject(base + fallbackPath, "720p", langs, item, tmdbTitle, s, e, "Episode " + e));
-      });
     }
     return streams;
   });
