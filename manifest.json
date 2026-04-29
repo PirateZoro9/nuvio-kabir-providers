@@ -125,6 +125,34 @@
       "limited": false,
       "disabledPlatforms": [],
       "supportsExternalPlayer": true
+    },
+    {
+      "id": "streamflix-provider",
+      "name": "StreamFlix 2.0",
+      "description": "Premium 1080p Movies & TV Series with Multi-Audio support.",
+      "version": "1.0.0",
+      "author": "kabir",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/streamflix.js",
+      "enabled": true,
+      "logo": "",
+      "contentLanguage": [
+        "hi",
+        "en",
+        "ta",
+        "te"
+      ],
+      "formats": [
+        "mkv",
+        "mp4",
+        "m3u8"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
     }
   ]
 }
