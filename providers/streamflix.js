@@ -1,6 +1,6 @@
 /**
  * streamflix - Built from src/streamflix/
- * Generated: 2026-04-29T04:10:29.197Z
+ * Generated: 2026-04-29T04:34:00.313Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -28,7 +28,7 @@ var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
 var SF_BASE = "https://api.streamflix.app";
 var CONFIG_URL = `${SF_BASE}/config/config-streamflixapp.json`;
 var FIREBASE_DB = "https://chilflix-410be-default-rtdb.asia-southeast1.firebasedatabase.app";
-var PROXY_URL = "";
+var PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec";
 var HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Referer": "https://api.streamflix.app/",

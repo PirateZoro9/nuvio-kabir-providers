@@ -11,7 +11,7 @@ const CONFIG_URL = `${SF_BASE}/config/config-streamflixapp.json`;
 const FIREBASE_DB = "https://chilflix-410be-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 // ⚠️ IMPORTANT: Update this URL after deploying your Google Apps Script Proxy
-const PROXY_URL = ""; 
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec"; 
 
 const HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
