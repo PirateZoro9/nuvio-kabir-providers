@@ -1,7 +1,7 @@
 /**
  * SFlix Provider for Nuvio
  * Complete implementation of the BFF (Backend for Frontend) API.
- * Version: 1.0.1 - FIXED: Strict title and year matching
+ * Optimized with Universal Proxy for Global Access.
  */
 
 const cheerio = require('cheerio-without-node-native');
@@ -11,49 +11,32 @@ const BASE_URL = "https://sflix.film";
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
-/**
- * Endpoints derived from SFlix BFF architecture
- */
-const ENDPOINTS = {
-    SEARCH: "/wefeed-h5-bff/web/subject/search",
-    DETAIL: "/wefeed-h5-bff/web/subject/detail",
-    PLAY: "/wefeed-h5-bff/web/subject/play",
-    CAPTION: "/wefeed-h5-bff/web/subject/caption",
-    RANKING: "/wefeed-h5-bff/web/ranking-list/content"
-};
+// Universal Proxy URL (Shared with StreamFlix)
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec";
 
 /**
- * Mandatory headers for BFF authentication
+ * Networking Layer (Universal Proxy Routing)
  */
-const GLOBAL_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Origin": BASE_URL,
-    "Referer": `${BASE_URL}/`
-};
+async function bffRequest(action, params = {}) {
+    try {
+        let queryParts = [`action=${action}`];
+        for (let key in params) {
+            queryParts.push(`${key}=${encodeURIComponent(params[key])}`);
+        }
+        
+        const proxyUrl = `${PROXY_URL}?${queryParts.join("&")}`;
+        const response = await fetch(proxyUrl);
 
-// --- Networking Layer ---
-
-async function bffRequest(endpoint, options = {}) {
-    const url = endpoint.startsWith("http") ? endpoint : BASE_URL + endpoint;
-    const method = options.method || "GET";
-    const headers = Object.assign({}, GLOBAL_HEADERS, options.headers || {});
-    
-    if (method === "POST" && options.body) {
-        headers["Content-Type"] = "application/json;charset=UTF-8";
+        if (!response.ok) throw new Error(`Proxy Request Failed: ${response.status}`);
+        const json = await response.json();
+        
+        // SFlix BFF uses code 0 for success
+        if (json.code !== 0) throw new Error(`BFF Logic Error: ${json.message || "Unknown error"}`);
+        return json.data;
+    } catch (e) {
+        console.error(`[SFlix Proxy] Error: ${e.message}`);
+        throw e;
     }
-
-    const response = await fetch(url, {
-        method,
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined
-    });
-
-    if (!response.ok) throw new Error(`BFF Request Failed: ${response.status}`);
-    const json = await response.json();
-    if (json.code !== 0) throw new Error(`BFF Logic Error: ${json.message}`);
-    return json.data;
 }
 
 // --- Domain Helpers ---
@@ -85,22 +68,15 @@ function uniqueStreams(streams) {
     });
 }
 
-// --- BFF API Wrappers ---
+// --- API Wrappers (Now using Proxy) ---
 
 async function searchSFlix(query) {
-    const body = {
-        keyword: query,
-        page: 1,
-        perPage: 24,
-        subjectType: 0
-    };
-    const data = await bffRequest(ENDPOINTS.SEARCH, { method: "POST", body });
+    const data = await bffRequest("sflix_search", { q: query });
     return data?.items || [];
 }
 
 async function loadDetail(subjectId) {
-    const endpoint = `${ENDPOINTS.DETAIL}?subjectId=${subjectId}`;
-    const data = await bffRequest(endpoint);
+    const data = await bffRequest("sflix_detail", { id: subjectId });
     if (!data?.subject) throw new Error("Metadata not found");
     
     const subject = data.subject;
@@ -139,8 +115,13 @@ async function loadDetail(subjectId) {
 async function fetchSubtitles(streamId, format, subjectId, path) {
     try {
         const refererUrl = `${BASE_URL}/spa/videoPlayPage/movies/${path}?id=${subjectId}&type=/movie/detail&lang=en`;
-        const endpoint = `${ENDPOINTS.CAPTION}?format=${format}&id=${streamId}&subjectId=${subjectId}`;
-        const data = await bffRequest(endpoint, { headers: { "Referer": refererUrl } });
+        const data = await bffRequest("sflix_caption", { 
+            format: format, 
+            id: streamId, 
+            sid: subjectId,
+            referer: refererUrl
+        });
+        
         if (data?.captions) {
             return data.captions.map(sub => ({
                 url: sub.url,
@@ -154,8 +135,12 @@ async function fetchSubtitles(streamId, format, subjectId, path) {
 
 async function resolvePlayInfo(id, se, ep, path) {
     const refererUrl = `${BASE_URL}/spa/videoPlayPage/movies/${path}?id=${id}&type=/movie/detail&lang=en`;
-    const endpoint = `${ENDPOINTS.PLAY}?subjectId=${id}&se=${se}&ep=${ep}`;
-    const data = await bffRequest(endpoint, { headers: { "Referer": refererUrl } });
+    const data = await bffRequest("sflix_play", { 
+        id: id, 
+        se: se, 
+        ep: ep,
+        referer: refererUrl
+    });
 
     if (!data?.streams || data.streams.length === 0) return [];
     const subtitles = await fetchSubtitles(data.streams[0].id, data.streams[0].format, id, path);
@@ -163,7 +148,7 @@ async function resolvePlayInfo(id, se, ep, path) {
     const streamResults = data.streams
         .reverse()
         .map(s => ({
-            name: "SFlix (BFF)",
+            name: "SFlix (Global)",
             title: `SFlix - ${formatQuality(s.resolutions)}`,
             url: s.url,
             quality: formatQuality(s.resolutions),
@@ -175,13 +160,12 @@ async function resolvePlayInfo(id, se, ep, path) {
 }
 
 /**
- * Main function with STRICT MATCHING
+ * Main Entry Point
  */
 async function getStreams(tmdbId, mediaType, season, episode) {
     try {
         console.log(`[SFlix] Request: ${mediaType} ${tmdbId} S:${season} E:${episode}`);
 
-        // 1. Resolve exact title and year from TMDB
         const info = await getTMDBInfo(tmdbId, mediaType);
         if (!info.title) return [];
         
@@ -189,18 +173,13 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         const originalTitle = info.originalTitle?.toLowerCase() || "";
         const targetYear = info.year;
 
-        // 2. Search SFlix
         const searchResults = await searchSFlix(info.title);
         
-        // 3. STRICT MATCHING: Filter by Title Similarity and Release Year
         const match = searchResults.find(r => {
             const rTitle = r.title.toLowerCase();
             const rYear = r.releaseDate?.split('-')[0] || "";
-            
             const isTitleMatch = rTitle === targetTitle || rTitle === originalTitle || rTitle.includes(targetTitle);
             const isYearMatch = rYear === targetYear;
-
-            // Must match title and be within 1 year of the target release (to handle slight DB mismatches)
             return isTitleMatch && (isYearMatch || Math.abs(parseInt(rYear) - parseInt(targetYear)) <= 1);
         });
 
@@ -209,12 +188,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
             return [];
         }
 
-        console.log(`[SFlix] Strict Match Found: ${match.title} (${match.releaseDate})`);
-
-        // 4. Get detailed metadata and episode IDs
         const detail = await loadDetail(match.subjectId);
-        
-        // 5. Find the target episode
         let target = null;
         if (mediaType === 'movie') {
             target = detail.episodes[0];
@@ -224,7 +198,6 @@ async function getStreams(tmdbId, mediaType, season, episode) {
 
         if (!target) return [];
 
-        // 6. Resolve final stream and subtitles
         return await resolvePlayInfo(target.id, target.season, target.episode, target.path);
 
     } catch (error) {

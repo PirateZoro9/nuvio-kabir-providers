@@ -1,6 +1,6 @@
 /**
  * sflix - Built from src/sflix/
- * Generated: 2026-04-29T05:18:55.000Z
+ * Generated: 2026-04-29T06:42:31.838Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -28,39 +28,26 @@ var cheerio = require("cheerio-without-node-native");
 var BASE_URL = "https://sflix.film";
 var TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49";
 var TMDB_BASE = "https://api.themoviedb.org/3";
-var ENDPOINTS = {
-  SEARCH: "/wefeed-h5-bff/web/subject/search",
-  DETAIL: "/wefeed-h5-bff/web/subject/detail",
-  PLAY: "/wefeed-h5-bff/web/subject/play",
-  CAPTION: "/wefeed-h5-bff/web/subject/caption",
-  RANKING: "/wefeed-h5-bff/web/ranking-list/content"
-};
-var GLOBAL_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept": "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Origin": BASE_URL,
-  "Referer": `${BASE_URL}/`
-};
+var PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec";
 function bffRequest(_0) {
-  return __async(this, arguments, function* (endpoint, options = {}) {
-    const url = endpoint.startsWith("http") ? endpoint : BASE_URL + endpoint;
-    const method = options.method || "GET";
-    const headers = Object.assign({}, GLOBAL_HEADERS, options.headers || {});
-    if (method === "POST" && options.body) {
-      headers["Content-Type"] = "application/json;charset=UTF-8";
+  return __async(this, arguments, function* (action, params = {}) {
+    try {
+      let queryParts = [`action=${action}`];
+      for (let key in params) {
+        queryParts.push(`${key}=${encodeURIComponent(params[key])}`);
+      }
+      const proxyUrl = `${PROXY_URL}?${queryParts.join("&")}`;
+      const response = yield fetch(proxyUrl);
+      if (!response.ok)
+        throw new Error(`Proxy Request Failed: ${response.status}`);
+      const json = yield response.json();
+      if (json.code !== 0)
+        throw new Error(`BFF Logic Error: ${json.message || "Unknown error"}`);
+      return json.data;
+    } catch (e) {
+      console.error(`[SFlix Proxy] Error: ${e.message}`);
+      throw e;
     }
-    const response = yield fetch(url, {
-      method,
-      headers,
-      body: options.body ? JSON.stringify(options.body) : void 0
-    });
-    if (!response.ok)
-      throw new Error(`BFF Request Failed: ${response.status}`);
-    const json = yield response.json();
-    if (json.code !== 0)
-      throw new Error(`BFF Logic Error: ${json.message}`);
-    return json.data;
   });
 }
 function getTMDBInfo(tmdbId, mediaType) {
@@ -94,20 +81,13 @@ function uniqueStreams(streams) {
 }
 function searchSFlix(query) {
   return __async(this, null, function* () {
-    const body = {
-      keyword: query,
-      page: 1,
-      perPage: 24,
-      subjectType: 0
-    };
-    const data = yield bffRequest(ENDPOINTS.SEARCH, { method: "POST", body });
+    const data = yield bffRequest("sflix_search", { q: query });
     return (data == null ? void 0 : data.items) || [];
   });
 }
 function loadDetail(subjectId) {
   return __async(this, null, function* () {
-    const endpoint = `${ENDPOINTS.DETAIL}?subjectId=${subjectId}`;
-    const data = yield bffRequest(endpoint);
+    const data = yield bffRequest("sflix_detail", { id: subjectId });
     if (!(data == null ? void 0 : data.subject))
       throw new Error("Metadata not found");
     const subject = data.subject;
@@ -143,8 +123,12 @@ function fetchSubtitles(streamId, format, subjectId, path) {
   return __async(this, null, function* () {
     try {
       const refererUrl = `${BASE_URL}/spa/videoPlayPage/movies/${path}?id=${subjectId}&type=/movie/detail&lang=en`;
-      const endpoint = `${ENDPOINTS.CAPTION}?format=${format}&id=${streamId}&subjectId=${subjectId}`;
-      const data = yield bffRequest(endpoint, { headers: { "Referer": refererUrl } });
+      const data = yield bffRequest("sflix_caption", {
+        format,
+        id: streamId,
+        sid: subjectId,
+        referer: refererUrl
+      });
       if (data == null ? void 0 : data.captions) {
         return data.captions.map((sub) => ({
           url: sub.url,
@@ -160,13 +144,17 @@ function fetchSubtitles(streamId, format, subjectId, path) {
 function resolvePlayInfo(id, se, ep, path) {
   return __async(this, null, function* () {
     const refererUrl = `${BASE_URL}/spa/videoPlayPage/movies/${path}?id=${id}&type=/movie/detail&lang=en`;
-    const endpoint = `${ENDPOINTS.PLAY}?subjectId=${id}&se=${se}&ep=${ep}`;
-    const data = yield bffRequest(endpoint, { headers: { "Referer": refererUrl } });
+    const data = yield bffRequest("sflix_play", {
+      id,
+      se,
+      ep,
+      referer: refererUrl
+    });
     if (!(data == null ? void 0 : data.streams) || data.streams.length === 0)
       return [];
     const subtitles = yield fetchSubtitles(data.streams[0].id, data.streams[0].format, id, path);
     const streamResults = data.streams.reverse().map((s) => ({
-      name: "SFlix (BFF)",
+      name: "SFlix (Global)",
       title: `SFlix - ${formatQuality(s.resolutions)}`,
       url: s.url,
       quality: formatQuality(s.resolutions),
@@ -200,7 +188,6 @@ function getStreams(tmdbId, mediaType, season, episode) {
         console.warn(`[SFlix] No strict match found for ${info.title} (${info.year})`);
         return [];
       }
-      console.log(`[SFlix] Strict Match Found: ${match.title} (${match.releaseDate})`);
       const detail = yield loadDetail(match.subjectId);
       let target = null;
       if (mediaType === "movie") {
