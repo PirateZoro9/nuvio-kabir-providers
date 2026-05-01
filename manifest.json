@@ -153,6 +153,33 @@
       "limited": false,
       "disabledPlatforms": [],
       "supportsExternalPlayer": true
+    },
+    {
+      "id": "onetouchtv-provider",
+      "name": "OneTouchTV",
+      "description": "Asian Dramas & Anime Specialist, ported by kabir",
+      "version": "1.0.0",
+      "author": "kabir",
+      "supportedTypes": [
+        "tv",
+        "movie"
+      ],
+      "filename": "providers/onetouchtv.js",
+      "enabled": true,
+      "logo": "https://onetouchtv.xyz/favicon.ico",
+      "contentLanguage": [
+        "en",
+        "ko",
+        "ja",
+        "zh"
+      ],
+      "formats": [
+        "m3u8",
+        "mp4"
+      ],
+      "limited": false,
+      "disabledPlatforms": [],
+      "supportsExternalPlayer": true
     }
   ]
 }

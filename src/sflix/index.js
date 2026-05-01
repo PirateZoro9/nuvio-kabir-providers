@@ -12,10 +12,11 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
 // Universal Proxy URL (Shared with StreamFlix)
-const PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec";
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbxqpHMie9RFfevHFuUZRGiQqidN5iugORvxksVbZt8TEOYjiPylRtZVX50VFnlUMkr7VA/exec";
 
 /**
  * Networking Layer (Universal Proxy Routing)
+
  */
 async function bffRequest(action, params = {}) {
     try {

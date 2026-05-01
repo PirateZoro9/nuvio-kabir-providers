@@ -1,11 +1,6 @@
 /**
  * Universal Nuvio Proxy (StreamFlix + SFlix)
  * Version: 2.0.0
- * 
- * Logic:
- * 1. Default (if tmdb/q is present) -> StreamFlix Proxy Logic (Sandbox Bypass)
- * 2. action=sflix_search -> SFlix Search API (Geo-Lock Bypass)
- * 3. action=sflix_play   -> SFlix Play/Detail/Caption APIs (Geo-Lock Bypass)
  */
 
 function doGet(e) {
@@ -16,7 +11,7 @@ function doGet(e) {
     return handleSFlix(e);
   }
 
-  // --- 2. Default: StreamFlix Logic (Existing Logic - NO CHANGES) ---
+  // --- 2. Default: StreamFlix Logic (Existing Logic) ---
   return handleStreamFlix(e);
 }
 
@@ -35,19 +30,11 @@ function handleSFlix(e) {
 
   try {
     var url, options;
-
     if (action === "sflix_search") {
       url = baseUrl + "/wefeed-h5-bff/web/subject/search";
       options = {
-        method: "post",
-        contentType: "application/json;charset=UTF-8",
-        headers: headers,
-        payload: JSON.stringify({
-          keyword: e.parameter.q,
-          page: 1,
-          perPage: 24,
-          subjectType: 0
-        }),
+        method: "post", contentType: "application/json;charset=UTF-8", headers: headers,
+        payload: JSON.stringify({ keyword: e.parameter.q, page: 1, perPage: 24, subjectType: 0 }),
         muteHttpExceptions: true
       };
     } 
@@ -67,18 +54,14 @@ function handleSFlix(e) {
     }
 
     var response = UrlFetchApp.fetch(url, options);
-    return ContentService.createTextOutput(response.getContentText())
-                         .setMimeType(ContentService.MimeType.JSON);
-
+    return ContentService.createTextOutput(response.getContentText()).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
-                         .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 /**
  * Handles StreamFlix Requests (Existing Sandbox Crash Bypass)
- * This is exactly the same logic as the previous version.
  */
 function handleStreamFlix(e) {
   var tmdb = e.parameter.tmdb;

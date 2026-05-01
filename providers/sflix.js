@@ -1,6 +1,6 @@
 /**
  * sflix - Built from src/sflix/
- * Generated: 2026-04-29T06:42:31.838Z
+ * Generated: 2026-04-30T08:48:04.827Z
  */
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -28,7 +28,7 @@ var cheerio = require("cheerio-without-node-native");
 var BASE_URL = "https://sflix.film";
 var TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49";
 var TMDB_BASE = "https://api.themoviedb.org/3";
-var PROXY_URL = "https://script.google.com/macros/s/AKfycbzKvHoxL0rV7PGsti4EN0oNMoiFmizAmipZ2R_ZoCQeIyAC_xeXVBeI2vB2GDa4fGIYYg/exec";
+var PROXY_URL = "https://script.google.com/macros/s/AKfycbxqpHMie9RFfevHFuUZRGiQqidN5iugORvxksVbZt8TEOYjiPylRtZVX50VFnlUMkr7VA/exec";
 function bffRequest(_0) {
   return __async(this, arguments, function* (action, params = {}) {
     try {
