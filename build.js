@@ -59,6 +59,13 @@ async function buildProvider(providerName, options = {}) {
         return false;
     }
 
+    // OneTouchTV requires bundled crypto-js for mobile app compatibility
+    let externalModules = [...EXTERNAL_MODULES];
+    if (providerName === 'onetouchtv') {
+        console.log(`📦 Bundling crypto-js for ${providerName} (Mobile Compatibility)...`);
+        externalModules = externalModules.filter(m => m !== 'crypto-js');
+    }
+
     try {
         const result = await esbuild.build({
             entryPoints: [entryPoint],
@@ -69,7 +76,7 @@ async function buildProvider(providerName, options = {}) {
             target: 'es2016',           // Transpile async/await to generators for Hermes
             minify: options.minify || false, // Minify if --minify flag is set
             sourcemap: false,
-            external: EXTERNAL_MODULES,
+            external: externalModules,
             define: {
                 'process.env.TMDB_API_KEY': JSON.stringify(process.env.TMDB_API_KEY || ""),
                 'process.env.DOFLIX_API_KEY': JSON.stringify(process.env.DOFLIX_API_KEY || ""),

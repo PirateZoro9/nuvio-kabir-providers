@@ -6,6 +6,7 @@
  * - Secure AES-256-CBC Decryption (Verified).
  * - High-quality Metadata (Cast, Recommendations).
  * - Full Search & Detail support.
+ * - Smart ID Resolver (Support for both Android TV and Mobile IMDB IDs).
  * 
  * Ported by Gemini CLI from Phisher's OneTouchTV extension.
  */
@@ -30,7 +31,6 @@ function decryptOneTouch(input) {
         if (!input || typeof input !== 'string') return null;
 
         // Step A: Normalize Custom Alphabet (Proof-of-Work from Kotlin)
-        // Literal replacement of "-_." sequence with "/" and "@" with "+"
         let normalized = input
             .replace(/-_\./g, "/")
             .replace(/@/g, "+")
@@ -90,12 +90,8 @@ async function getStreams(tmdbId, mediaType = "movie", season = null, episode = 
     try {
         console.log(`[OneTouchTV] Request: ID=${tmdbId}, Type=${mediaType}, S=${season}, E=${episode}`);
 
-        // 1. Resolve TMDB Metadata with String Fallback
-        let mediaInfo;
-        const isNumericId = /^\d+$/.test(tmdbId);
-        if (isNumericId) {
-            mediaInfo = await getTMDBDetails(tmdbId, mediaType);
-        }
+        // 1. Resolve Metadata with Smart ID Resolver (TV & Mobile Support)
+        let mediaInfo = await resolveMediaInfo(tmdbId, mediaType);
 
         if (!mediaInfo) {
             console.log("[OneTouchTV] TMDB resolution skipped or failed. Using fallback.");
@@ -200,18 +196,49 @@ async function getStreams(tmdbId, mediaType = "movie", season = null, episode = 
  * --- Utilities ---
  */
 
-async function getTMDBDetails(id, type) {
+/**
+ * Smart ID Resolver: Handles Numeric IDs (TV) and tt... IDs (Mobile)
+ */
+async function resolveMediaInfo(id, type) {
+    const idStr = id.toString();
+    const isImdb = idStr.startsWith("tt");
+    const isNumeric = /^\d+$/.test(idStr);
+    const tmdbType = (type === "tv" || type === "series") ? "tv" : "movie";
+    
     try {
-        const isTv = type === "tv" || type === "series";
-        const url = `${TMDB_BASE}/${isTv ? 'tv' : 'movie'}/${id}?api_key=${TMDB_API_KEY}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        return {
-            title: isTv ? data.name : data.title,
-            year: (data.first_air_date || data.release_date || "").split("-")[0],
-            isTv: isTv
-        };
-    } catch (e) { return null; }
+        if (isImdb) {
+            console.log(`[OneTouchTV] Mobile ID detected (${idStr}). Translating via TMDB...`);
+            const findUrl = `${TMDB_BASE}/find/${idStr}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+            const res = await fetch(findUrl);
+            const data = await res.json();
+            const results = (tmdbType === "tv") ? data.tv_results : data.movie_results;
+            
+            if (results && results.length > 0) {
+                const item = results[0];
+                return {
+                    id: item.id,
+                    title: (tmdbType === "tv") ? item.name : item.title,
+                    year: (item.first_air_date || item.release_date || "").split("-")[0],
+                    isTv: tmdbType === "tv"
+                };
+            }
+        } else if (isNumeric) {
+            const url = `${TMDB_BASE}/${tmdbType}/${idStr}?api_key=${TMDB_API_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.id) {
+                return {
+                    id: data.id,
+                    title: (tmdbType === "tv") ? data.name : data.title,
+                    year: (data.first_air_date || data.release_date || "").split("-")[0],
+                    isTv: tmdbType === "tv"
+                };
+            }
+        }
+    } catch (e) {
+        console.error(`[OneTouchTV] TMDB Smart Resolver Error: ${e.message}`);
+    }
+    return null;
 }
 
 function calculateSimilarity(s1, s2) {
